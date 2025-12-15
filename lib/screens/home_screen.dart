@@ -15,15 +15,28 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final _userService = UserService();
   final _userManagementService = UserManagementService();
   String? _selectedCategory; // null means show all
+  
+  // Animation controller for navbar
+  late AnimationController _navAnimationController;
 
   @override
   void initState() {
     super.initState();
     _checkBannedStatus();
+    _navAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+  
+  @override
+  void dispose() {
+    _navAnimationController.dispose();
+    super.dispose();
   }
 
   void _checkBannedStatus() async {
@@ -359,42 +372,23 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
 
       // -----------------------------------------------------------
-      // BOTTOM NAVIGATION BAR
+      // MODERN ANIMATED BOTTOM NAVIGATION BAR
       // -----------------------------------------------------------
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF0E1525),
-              Color(0xFF0A0F1A),
-            ],
-          ),
-        ),
-        child: Row(
-          children: List.generate(_navItems.length, (index) {
-            final item = _navItems[index];
-            return Expanded(
-              child: _NavItem(
-                icon: item["icon"],
-                label: item["label"],
-                active: _selectedIndex == index,
-                onTap: () {
-                  if (item["label"] == "Cart") {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const CartScreen(),
-                      ),
-                    );
-                    return;
-                  }
-                  if (_selectedIndex == index) return;
-                  setState(() => _selectedIndex = index);
-                },
+      bottomNavigationBar: _ModernNavBar(
+        items: _navItems,
+        selectedIndex: _selectedIndex,
+        onItemTapped: (index) {
+          if (_navItems[index]["label"] == "Cart") {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const CartScreen(),
               ),
             );
-          }),
-        ),
+            return;
+          }
+          if (_selectedIndex == index) return;
+          setState(() => _selectedIndex = index);
+        },
       ),
 
       // -----------------------------------------------------------
@@ -708,41 +702,296 @@ class _HomeScreenState extends State<HomeScreen> {
 // ======================================================
 
 // --------------------------
-// NAV ITEM
+// MODERN ANIMATED NAVBAR
 // --------------------------
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback? onTap;
+class _ModernNavBar extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  final int selectedIndex;
+  final Function(int) onItemTapped;
 
-  const _NavItem(
-      {required this.icon,
-      required this.label,
-      this.active = false,
-      this.onTap});
+  const _ModernNavBar({
+    required this.items,
+    required this.selectedIndex,
+    required this.onItemTapped,
+  });
+
+  @override
+  State<_ModernNavBar> createState() => _ModernNavBarState();
+}
+
+class _ModernNavBarState extends State<_ModernNavBar> with TickerProviderStateMixin {
+  late List<AnimationController> _scaleControllers;
+  late List<Animation<double>> _scaleAnimations;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAnimations();
+  }
+
+  void _initAnimations() {
+    _scaleControllers = List.generate(
+      widget.items.length,
+      (index) => AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 200),
+      ),
+    );
+
+    _scaleAnimations = _scaleControllers.map((controller) {
+      return Tween<double>(begin: 1.0, end: 1.2).animate(
+        CurvedAnimation(parent: controller, curve: Curves.easeOutBack),
+      );
+    }).toList();
+
+    // Start animation for initially selected item
+    if (widget.selectedIndex < _scaleControllers.length) {
+      _scaleControllers[widget.selectedIndex].forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ModernNavBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      // Reverse old selection animation
+      if (oldWidget.selectedIndex < _scaleControllers.length) {
+        _scaleControllers[oldWidget.selectedIndex].reverse();
+      }
+      // Forward new selection animation
+      if (widget.selectedIndex < _scaleControllers.length) {
+        _scaleControllers[widget.selectedIndex].forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _scaleControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: active ? Colors.amber : Colors.white54),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? Colors.amber : Colors.white54,
-                fontSize: 11,
-                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1A2333).withOpacity(0.95),
+            const Color(0xFF0F1729).withOpacity(0.98),
           ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: const Color(0xFFE0B43A).withOpacity(0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: const Color(0xFFE0B43A).withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(widget.items.length, (index) {
+          final item = widget.items[index];
+          final isActive = widget.selectedIndex == index;
+          final isCart = item["label"] == "Cart";
+
+          return _AnimatedNavItem(
+            icon: item["icon"],
+            label: item["label"],
+            isActive: isActive,
+            isCart: isCart,
+            scaleAnimation: _scaleAnimations[index],
+            onTap: () {
+              widget.onItemTapped(index);
+            },
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// --------------------------
+// ANIMATED NAV ITEM
+// --------------------------
+class _AnimatedNavItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final bool isCart;
+  final Animation<double> scaleAnimation;
+  final VoidCallback onTap;
+
+  const _AnimatedNavItem({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.isCart,
+    required this.scaleAnimation,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedNavItem> createState() => _AnimatedNavItemState();
+}
+
+class _AnimatedNavItemState extends State<_AnimatedNavItem> with SingleTickerProviderStateMixin {
+  late AnimationController _tapController;
+  late Animation<double> _tapAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _tapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _tapAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(parent: _tapController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tapController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    _tapController.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    _tapController.reverse();
+    widget.onTap();
+  }
+
+  void _handleTapCancel() {
+    _tapController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFE0B43A);
+    const inactiveColor = Color(0xFF6B7280);
+
+    return GestureDetector(
+      onTapDown: _handleTapDown,
+      onTapUp: _handleTapUp,
+      onTapCancel: _handleTapCancel,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_tapAnimation, widget.scaleAnimation]),
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _tapAnimation.value * (widget.isActive ? widget.scaleAnimation.value : 1.0),
+            child: child,
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.isActive ? 16 : 12,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            gradient: widget.isActive
+                ? LinearGradient(
+                    colors: [
+                      gold.withOpacity(0.25),
+                      gold.withOpacity(0.1),
+                    ],
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(20),
+            border: widget.isActive
+                ? Border.all(color: gold.withOpacity(0.4), width: 1)
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animated Icon with glow effect
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Glow effect for active state
+                  if (widget.isActive)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: gold.withOpacity(0.5),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Icon
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) {
+                      return ScaleTransition(
+                        scale: animation,
+                        child: child,
+                      );
+                    },
+                    child: Icon(
+                      widget.isCart 
+                          ? (widget.isActive ? Icons.shopping_cart : Icons.shopping_cart_outlined)
+                          : widget.icon,
+                      key: ValueKey('${widget.label}_${widget.isActive}'),
+                      color: widget.isActive ? gold : inactiveColor,
+                      size: widget.isCart ? 26 : 24,
+                    ),
+                  ),
+                ],
+              ),
+              // Animated label (only visible when active)
+              ClipRect(
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  child: widget.isActive
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text(
+                            widget.label,
+                            style: const TextStyle(
+                              color: gold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
